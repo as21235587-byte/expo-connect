@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Expo Connect Admin</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:0;background:#f4f6fb;color:#0b1f4d}
+.w{max-width:900px;margin:0 auto;padding:16px}
+h1,h2{margin:12px 0}
+.c{background:#fff;border-radius:10px;padding:16px;margin-bottom:16px;box-shadow:0 1px 4px #0001}
+input,select,textarea{width:100%;padding:9px;margin:4px 0 10px;border:1px solid #c5cde0;border-radius:6px;box-sizing:border-box}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+button{background:#f59e0b;color:#0b1f4d;border:0;padding:10px 16px;border-radius:6px;font-weight:700;cursor:pointer}
+button.s{background:#0b1f4d;color:#fff;padding:6px 10px;font-size:13px}
+.r{border-top:1px solid #e3e8f4;padding:10px 0;display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+@media(max-width:600px){.g{grid-template-columns:1fr}}
+</style></head><body><div class="w">
+<div id="L" class="c"><h2>Admin Login</h2>
+<input id="em" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password">
+<button onclick="login()">Login</button></div>
+<div id="A" style="display:none">
+<div style="display:flex;justify-content:space-between;align-items:center"><h1>Expo Connect Admin</h1><button class="s" onclick="logout()">Logout</button></div>
+<div class="c"><h2>Nayi Job Publish Karo</h2><div class="g">
+<div>Title<input id="title"></div><div>Event name<input id="event_name"></div>
+<div>City<input id="city"></div><div>Venue<input id="venue"></div>
+<div>Category<input id="category" placeholder="Hostess, Promoter, Crew..."></div><div>Date<input id="event_date" type="date"></div>
+<div>Duty hours<input id="duty_hours" placeholder="9 AM - 7 PM"></div><div>Vacancies<input id="vacancies" type="number" value="1"></div>
+<div>Pay min (₹)<input id="pay_min" type="number"></div><div>Pay max (₹)<input id="pay_max" type="number"></div></div>
+Eligibility<textarea id="eligibility" rows="2"></textarea>
+<button onclick="addJob()">Publish</button></div>
+<div class="c"><h2>Jobs</h2><div id="jobs"></div></div>
+<div class="c"><h2>Applications</h2><div id="apps"></div></div>
+</div>
+<script>
+let T=sessionStorage.getItem('t')||'';
+const $=i=>document.getElementById(i);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(p,m='GET',b){
+  const r=await fetch('/api/admin/'+p,{method:m,headers:{'Content-Type':'application/json',Authorization:'Bearer '+T},body:b?JSON.stringify(b):undefined});
+  if(r.status==401||r.status==403){logout();throw 0}
+  if(!r.ok){alert('Error: '+await r.text());throw 0}
+  return r.json();
+}
+async function login(){
+  const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('em').value,password:$('pw').value})});
+  if(!r.ok){alert('Login fail: email/password galat ya admin nahi');return}
+  T=(await r.json()).token;sessionStorage.setItem('t',T);show();
+}
+function logout(){T='';sessionStorage.removeItem('t');$('L').style.display='';$('A').style.display='none'}
+async function show(){if(!T)return;$('L').style.display='none';$('A').style.display='';load()}
+async function load(){
+  const j=await api('jobs');
+  $('jobs').innerHTML=j.map(x=>`<div class="r"><div><b>${esc(x.title)}</b> · ${esc(x.event_name)}<br>${esc(x.city)} · ${esc(x.event_date)} · ₹${esc(x.pay_min)}-${esc(x.pay_max)} · ${esc(x.status)}</div>
+  <button class="s" onclick="setJob('${x.id}','${x.status=='active'?'closed':'active'}')">${x.status=='active'?'Close':'Reopen'}</button></div>`).join('')||'Koi job nahi';
+  const a=await api('applications');
+  $('apps').innerHTML=a.map(x=>`<div class="r"><div><b>${esc(x.candidates?.full_name)}</b> (${esc(x.candidates?.phone)}) · ${esc(x.candidates?.city)}<br>Applied for: ${esc(x.jobs?.title)} – ${esc(x.jobs?.event_name)}</div>
+  <select style="width:auto" onchange="setApp('${x.id}',this.value)">${['applied','shortlisted','selected','rejected'].map(s=>`<option ${s==x.status?'selected':''}>${s}</option>`).join('')}</select></div>`).join('')||'Abhi koi application nahi';
+}
+async function addJob(){
+  const n=v=>v===''?null:Number(v), t=v=>v.trim()||null;
+  const b={title:$('title').value,event_name:$('event_name').value,city:$('city').value,venue:t($('venue').value),category:t($('category').value),
+    event_date:$('event_date').value,duty_hours:t($('duty_hours').value),pay_min:n($('pay_min').value),pay_max:n($('pay_max').value),
+    vacancies:n($('vacancies').value),eligibility:t($('eligibility').value)};
+  if(!b.title||!b.event_name||!b.city||!b.event_date){alert('Title, event, city aur date zaruri hain');return}
+  await api('jobs','POST',b);alert('Job publish ho gayi');load();
+}
+async function setJob(id,s){await api('jobs/'+id,'PATCH',{status:s});load()}
+async function setApp(id,s){await api('applications/'+id,'PATCH',{status:s})}
+show();
+</script></body></html>
