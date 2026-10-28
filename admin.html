@@ -27,7 +27,9 @@ button.s{background:#0b1f4d;color:#fff;padding:6px 10px;font-size:13px}
 Eligibility<textarea id="eligibility" rows="2"></textarea>
 <button onclick="addJob()">Publish</button></div>
 <div class="c"><h2>Jobs</h2><div id="jobs"></div></div>
-<div class="c"><h2>Applications</h2><div id="apps"></div></div>
+<div class="c"><h2>Applications</h2>
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select id="fj" onchange="drawApps()" style="width:auto;flex:1;min-width:200px"><option value="">Sab jobs</option></select><button class="s" onclick="csv()">Excel/CSV download</button></div>
+<div id="apps"></div></div>
 </div>
 <script>
 let T=sessionStorage.getItem('t')||'';
@@ -50,9 +52,11 @@ async function load(){
   const j=await api('jobs');
   $('jobs').innerHTML=j.map(x=>`<div class="r"><div><b>${esc(x.title)}</b> · ${esc(x.event_name)}<br>${esc(x.city)} · ${esc(x.event_date)} · ₹${esc(x.pay_min)}-${esc(x.pay_max)} · ${esc(x.status)}</div>
   <button class="s" onclick="setJob('${x.id}','${x.status=='active'?'closed':'active'}')">${x.status=='active'?'Close':'Reopen'}</button></div>`).join('')||'Koi job nahi';
-  const a=await api('applications');
-  $('apps').innerHTML=a.map(x=>`<div class="r"><div><b>${esc(x.candidates?.full_name)}</b> (${esc(x.candidates?.phone)}) · ${esc(x.candidates?.city)}<br>Applied for: ${esc(x.jobs?.title)} – ${esc(x.jobs?.event_name)}</div>
-  <select style="width:auto" onchange="setApp('${x.id}',this.value)">${['applied','shortlisted','selected','rejected'].map(s=>`<option ${s==x.status?'selected':''}>${s}</option>`).join('')}</select></div>`).join('')||'Abhi koi application nahi';
+  APPS=await api('applications');
+  const cur=$('fj').value;
+  $('fj').innerHTML='<option value="">Sab jobs</option>'+j.map(x=>`<option value="${x.id}">${esc(x.title)} – ${esc(x.event_name)}</option>`).join('');
+  $('fj').value=cur;
+  drawApps();
 }
 async function addJob(){
   const n=v=>v===''?null:Number(v), t=v=>v.trim()||null;
@@ -63,6 +67,21 @@ async function addJob(){
   await api('jobs','POST',b);alert('Job publish ho gayi');load();
 }
 async function setJob(id,s){await api('jobs/'+id,'PATCH',{status:s});load()}
-async function setApp(id,s){await api('applications/'+id,'PATCH',{status:s})}
+let APPS=[];
+async function setApp(id,s){await api('applications/'+id,'PATCH',{status:s});const x=APPS.find(a=>a.id===id);if(x)x.status=s}
+function pick(){const f=$('fj').value;return APPS.filter(x=>!f||x.job_id===f)}
+function drawApps(){
+  $('apps').innerHTML=pick().map(x=>{const c=x.candidates||{},j=x.jobs||{},ph=String(c.phone||'').replace(/\D/g,'').slice(-10);
+  return `<div class="r"><div><b>${esc(c.full_name)}</b> · ${esc(c.phone)} · ${esc(c.city)}<br>${esc(c.age)} saal · ${esc(c.experience)} · Role: ${esc(c.role)}<br>Availability: ${esc(c.availability)} · Venues: ${esc(c.preferred_venues)}<br><b>${esc(j.title)}</b> – ${esc(j.event_name)}</div>
+  <div style="display:flex;gap:6px;align-items:center"><a target="_blank" rel="noopener" href="https://wa.me/91${ph}" style="text-decoration:none;padding:6px 10px;border-radius:6px;background:#16a34a;color:#fff;font-size:13px;font-weight:700">WhatsApp</a>
+  <select style="width:auto;margin:0" onchange="setApp('${x.id}',this.value)">${['applied','shortlisted','selected','rejected'].map(s=>`<option ${s==x.status?'selected':''}>${s}</option>`).join('')}</select></div></div>`}).join('')||'Koi application nahi';
+}
+function csv(){
+  const q=v=>{let s=String(v??'');if(/^[=+\-@]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'};
+  const h=['Name','Phone','Email','City','Age','Experience','Role','Availability','Venues','Job','Event','Status'];
+  const rows=pick().map(x=>{const c=x.candidates||{},j=x.jobs||{};return [c.full_name,c.phone,c.email,c.city,c.age,c.experience,c.role,c.availability,c.preferred_venues,j.title,j.event_name,x.status].map(q).join(',')});
+  const b=new Blob(['\\ufeff'+[h.map(q).join(','),...rows].join('\\r\\n')],{type:'text/csv;charset=utf-8'});
+  const u=URL.createObjectURL(b),l=document.createElement('a');l.href=u;l.download='applications.csv';l.click();URL.revokeObjectURL(u);
+}
 show();
 </script></body></html>

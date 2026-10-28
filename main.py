@@ -1,6 +1,6 @@
-import os, datetime
+import os, datetime, time
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -20,6 +20,16 @@ def auth_client():
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+HITS = {}
+def limit(request: Request, max_hits=10, window=3600):
+    ip = (request.headers.get("x-forwarded-for") or request.client.host).split(",")[0].strip()
+    now = time.time()
+    hits = [t for t in HITS.get(ip, []) if now - t < window]
+    if len(hits) >= max_hits:
+        raise HTTPException(429, "Bahut zyada koshish ho gayi. Thodi der baad try karo.")
+    hits.append(now)
+    HITS[ip] = hits
 
 class Job(BaseModel):
     title: str
@@ -72,7 +82,8 @@ def public_jobs():
     return sb.table("jobs").select("*").eq("status", "active").gte("event_date", today).order("event_date").execute().data
 
 @app.post("/api/register")
-def register(r: Reg):
+def register(r: Reg, request: Request):
+    limit(request)
     data = r.model_dump(exclude={"job_id"})
     cand = sb.table("candidates").upsert(data, on_conflict="phone").execute().data[0]
     if r.job_id:
@@ -112,7 +123,7 @@ def job_status(jid: str, p: Patch):
 
 @app.get("/api/admin/applications", dependencies=[Depends(admin)])
 def admin_apps():
-    return sb.table("applications").select("*, jobs(title,event_name,event_date), candidates(full_name,phone,city,experience)").order("created_at", desc=True).execute().data
+    return sb.table("applications").select("*, jobs(title,event_name,event_date), candidates(full_name,phone,email,city,age,gender,experience,role,availability,preferred_venues)").order("created_at", desc=True).execute().data
 
 @app.patch("/api/admin/applications/{aid}", dependencies=[Depends(admin)])
 def app_status(aid: str, p: Patch):
