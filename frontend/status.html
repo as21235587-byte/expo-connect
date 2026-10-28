@@ -1,0 +1,37 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Sora:wght@600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="css/style.css"><title>My Status – Expo Connect</title></head><body data-page="status"><div id="hdr"></div>
+<div class="page-h"><div class="wrap"><h1>Meri applications</h1><p>Phone number aur PIN se apni application ka status dekho.</p></div></div>
+<section><div class="wrap">
+<form id="lf" style="max-width:420px"><label for="lp">WhatsApp number</label><input id="lp" type="tel" pattern="[0-9]{10}" placeholder="10-digit number" required><label for="lpin">6 ank ka PIN</label><input id="lpin" type="password" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required><button class="btn btn-n" type="submit">Login</button><p class="meta">PIN bhool gaye? WhatsApp Community par team ko batao.</p></form>
+<div id="box" style="display:none"><p id="hi" class="meta"></p><div class="grid" id="mine"></div><p><a href="#" id="out">Logout</a></p></div>
+</div></section>
+<div id="ftr"></div><script src="js/main.js"></script>
+<script>
+const lf=document.getElementById("lf"),box=document.getElementById("box"),mine=document.getElementById("mine");
+const LBL={applied:"Applied – review ho rahi hai",shortlisted:"Shortlisted",selected:"Selected",rejected:"Is baar select nahi hui"};
+const KEY="ec_token";
+const getT=()=>{try{return localStorage.getItem(KEY)}catch(e){return null}};
+const setT=t=>{try{t?localStorage.setItem(KEY,t):localStorage.removeItem(KEY)}catch(e){}};
+function show(apps,name){
+  lf.style.display="none";box.style.display="block";
+  document.getElementById("hi").textContent=name?"Namaste, "+name:"";
+  mine.innerHTML=apps.length?apps.map(a=>{const j=a.jobs||{};return `<article class="card"><span class="tag">${esc(LBL[a.status]||a.status)}</span><h3>${esc(j.title)}</h3><div class="meta">${esc(j.event_name)} · ${esc([j.venue,j.city].filter(Boolean).join(", "))}</div><div class="meta">${j.event_date?fmt(j.event_date):""}${j.duty_hours?" · "+esc(j.duty_hours):""}</div></article>`}).join(""):emptyBox("Abhi tak kisi job par apply nahi kiya. Find Jobs se apply karo.");
+}
+async function load(t,name){
+  try{
+    const r=await fetch(API_BASE+"/api/candidate/applications",{headers:{Authorization:"Bearer "+t}});
+    if(!r.ok)throw 0;
+    show(await r.json(),name);
+  }catch(e){setT(null);lf.style.display="";box.style.display="none"}
+}
+lf.addEventListener("submit",async e=>{
+  e.preventDefault();
+  try{
+    const r=await fetch(API_BASE+"/api/candidate/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:document.getElementById("lp").value,pin:document.getElementById("lpin").value})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw d.detail;
+    setT(d.token);load(d.token,d.name);
+  }catch(m){alert(typeof m==="string"?m:"Login nahi hua. Dobara try karo.")}
+});
+document.getElementById("out").addEventListener("click",e=>{e.preventDefault();setT(null);location.reload()});
+const t0=getT();if(t0)load(t0,"");
+</script></body></html>
