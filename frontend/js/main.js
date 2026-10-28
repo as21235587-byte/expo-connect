@@ -1,10 +1,10 @@
 // ===== Expo Connect shared script =====
 // Live site par backend usi address se chalta hai (khali rehta hai). Laptop par Live Server (port 5500) se kholo to backend 8000 par jaata hai.
-const API_BASE = (["localhost","127.0.0.1"].includes(location.hostname) && location.port !== "8000") ? "http://127.0.0.1:8000" : "";
+const API_BASE = (location.protocol === "file:" || (["localhost","127.0.0.1"].includes(location.hostname) && location.port !== "8000")) ? "http://127.0.0.1:8000" : "";
 const WHATSAPP_LINK = "https://chat.whatsapp.com/LfkAuGKCxLBECXQHGSWQng?s=cl&p=a&mlu=4&ilr=4&iam=2"; // apna WhatsApp community link
 
 const page = document.body.dataset.page || "";
-const nav = [["index.html","Home","home"],["jobs.html","Find Jobs","jobs"],["join.html","Register","join"]];
+const nav = [["index.html","Home","home"],["jobs.html","Find Jobs","jobs"],["status.html","My Status","status"],["join.html","Register","join"]];
 document.getElementById("hdr").innerHTML = `<header><div class="wrap"><a class="logo" href="index.html">Expo<b>Connect</b></a><nav aria-label="Main">${
   nav.map(([h,t,k])=>`<a href="${h}" class="${k===page?"on":""}${k==="join"?" cta":""}">${t}</a>`).join("")}</nav></div></header>`;
 document.getElementById("ftr").innerHTML = `<footer><div class="wrap"><div><b>Expo Connect</b><br>Event staffing, simplified.</div><div><a href="${WHATSAPP_LINK}">WhatsApp Community</a> &nbsp; <a href="privacy-policy.html">Privacy</a> &nbsp; <a href="terms.html">Terms</a></div></div></footer>`;
@@ -71,6 +71,7 @@ document.querySelectorAll("form[data-endpoint]").forEach(f => f.addEventListener
     experience: fd.experience || null,
     availability: fd.availability || null,
     preferred_venues: venues.join(", ") || null,
+    pin: fd.pin || null,
     job_id: jobId || null
   };
   const ok = document.getElementById("ok"), btn = f.querySelector("button[type=submit]");
@@ -78,6 +79,8 @@ document.querySelectorAll("form[data-endpoint]").forEach(f => f.addEventListener
   try {
     const r = await fetch(API_BASE + "/api/register", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(data)});
     if (!r.ok) { const err = await r.json().catch(() => ({})); throw err.detail; }
+    const out = await r.json().catch(() => ({}));
+    try { if (out.token) localStorage.setItem("ec_token", out.token); } catch (e) {}
     ok.style.display = "block"; f.reset();
   } catch (msg) {
     alert(typeof msg === "string" ? msg : "Submit nahi hua. Internet check karke dobara try karo.");
